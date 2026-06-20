@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "GymControl.apps.GymcontrolConfig",
+    "accounts",
 ]
 
 MIDDLEWARE = [
@@ -137,6 +138,9 @@ STATIC_URL = 'static/'
 CORS_ALLOW_ALL_ORIGINS = True
 
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
