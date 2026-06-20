@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 
 from drf_spectacular.utils import extend_schema
 
@@ -12,6 +13,8 @@ class ExerciciosView(APIView):
     """
     Lista todos os exercícios ou cria um novo exercício.
     """
+
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Listar exercícios",
@@ -43,6 +46,18 @@ class ExerciciosView(APIView):
         tags=["Exercícios"],
     )
     def post(self, request):
+
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "cadastrar exercícios."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = ExercicioSerializer(
             data=request.data,
         )
@@ -65,6 +80,8 @@ class ExercicioView(APIView):
     """
     Consulta, atualiza ou exclui um exercício específico.
     """
+
+    permission_classes = [IsAuthenticated]
 
     def get_exercicio(self, pk):
         try:
@@ -109,6 +126,18 @@ class ExercicioView(APIView):
         tags=["Exercícios"],
     )
     def put(self, request, pk):
+
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "editar exercícios."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         exercicio = self.get_exercicio(pk)
 
         if exercicio is None:
@@ -145,6 +174,18 @@ class ExercicioView(APIView):
         tags=["Exercícios"],
     )
     def delete(self, request, pk):
+
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "excluir exercícios."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         exercicio = self.get_exercicio(pk)
 
         if exercicio is None:
