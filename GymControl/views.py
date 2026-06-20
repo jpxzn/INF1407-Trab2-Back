@@ -5,8 +5,12 @@ from rest_framework.permissions import IsAuthenticated
 
 from drf_spectacular.utils import extend_schema
 
-from .models import Exercicio, Treino
-from .serializers import ExercicioSerializer, TreinoSerializer
+from .models import Exercicio, Treino, TreinoExercicio
+from .serializers import (
+    ExercicioSerializer,
+    TreinoExercicioSerializer,
+    TreinoSerializer,
+)
 
 
 class ExerciciosView(APIView):
@@ -419,6 +423,349 @@ class TreinoView(APIView):
             )
 
         treino.delete()
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+    
+class TreinoExerciciosView(APIView):
+    """
+    Lista ou adiciona exercícios a um treino.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_treino(self, treino_pk, user):
+        if user.is_staff:
+            return Treino.objects.filter(
+                pk=treino_pk,
+            ).first()
+
+        return Treino.objects.filter(
+            pk=treino_pk,
+            aluno__user=user,
+        ).first()
+
+    @extend_schema(
+        summary="Listar exercícios do treino",
+        description=(
+            "Retorna os exercícios associados ao treino. "
+            "Alunos podem consultar apenas os próprios treinos."
+        ),
+        responses={
+            200: TreinoExercicioSerializer(many=True),
+            404: dict,
+        },
+        tags=["Treinos e exercícios"],
+    )
+    def get(self, request, treino_pk):
+        treino = self.get_treino(
+            treino_pk,
+            request.user,
+        )
+
+        if treino is None:
+            return Response(
+                {"detail": "Treino não encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        treino_exercicios = TreinoExercicio.objects.filter(
+            treino=treino,
+        )
+
+        serializer = TreinoExercicioSerializer(
+            treino_exercicios,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="Adicionar exercício ao treino",
+        description=(
+            "Associa um exercício a um treino, informando "
+            "a quantidade de séries e repetições. "
+            "Permitido somente para administradores."
+        ),
+        request=TreinoExercicioSerializer,
+        responses={
+            201: TreinoExercicioSerializer,
+            400: dict,
+            403: dict,
+            404: dict,
+        },
+        tags=["Treinos e exercícios"],
+    )
+    def post(self, request, treino_pk):
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "adicionar exercícios ao treino."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        treino = self.get_treino(
+            treino_pk,
+            request.user,
+        )
+
+        if treino is None:
+            return Response(
+                {"detail": "Treino não encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TreinoExercicioSerializer(
+            data=request.data,
+        )
+
+        if serializer.is_valid():
+            serializer.save(
+                treino=treino,
+            )
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    
+class TreinoExercicioView(APIView):
+    """
+    Consulta, atualiza ou exclui um exercício associado a um treino.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_treino_exercicio(self, treino_pk, pk, user):
+        filtros = {
+            "pk": pk,
+            "treino_id": treino_pk,
+        }
+
+        if not user.is_staff:
+            filtros["treino__aluno__user"] = user
+
+        return TreinoExercicio.objects.filter(
+            **filtros,
+        ).first()
+
+    @extend_schema(
+        summary="Consultar exercício do treino",
+        description=(
+            "Retorna uma associação entre treino e exercício. "
+            "Alunos podem consultar somente os próprios treinos."
+        ),
+        responses={
+            200: TreinoExercicioSerializer,
+            404: dict,
+        },
+        tags=["Treinos e exercícios"],
+    )
+    def get(self, request, treino_pk, pk):
+        treino_exercicio = self.get_treino_exercicio(
+            treino_pk,
+            pk,
+            request.user,
+        )
+
+        if treino_exercicio is None:
+            return Response(
+                {
+                    "detail": (
+                        "Exercício do treino não encontrado."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TreinoExercicioSerializer(
+            treino_exercicio,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="Atualizar exercício do treino",
+        description=(
+            "Atualiza completamente o exercício, as séries "
+            "e as repetições de um treino. "
+            "Permitido somente para administradores."
+        ),
+        request=TreinoExercicioSerializer,
+        responses={
+            200: TreinoExercicioSerializer,
+            400: dict,
+            403: dict,
+            404: dict,
+        },
+        tags=["Treinos e exercícios"],
+    )
+    def put(self, request, treino_pk, pk):
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "editar exercícios do treino."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        treino_exercicio = self.get_treino_exercicio(
+            treino_pk,
+            pk,
+            request.user,
+        )
+
+        if treino_exercicio is None:
+            return Response(
+                {
+                    "detail": (
+                        "Exercício do treino não encontrado."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TreinoExercicioSerializer(
+            treino_exercicio,
+            data=request.data,
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @extend_schema(
+        summary="Atualizar parcialmente exercício do treino",
+        description=(
+            "Atualiza somente os campos enviados. "
+            "Permitido somente para administradores."
+        ),
+        request=TreinoExercicioSerializer,
+        responses={
+            200: TreinoExercicioSerializer,
+            400: dict,
+            403: dict,
+            404: dict,
+        },
+        tags=["Treinos e exercícios"],
+    )
+    def patch(self, request, treino_pk, pk):
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "editar exercícios do treino."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        treino_exercicio = self.get_treino_exercicio(
+            treino_pk,
+            pk,
+            request.user,
+        )
+
+        if treino_exercicio is None:
+            return Response(
+                {
+                    "detail": (
+                        "Exercício do treino não encontrado."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TreinoExercicioSerializer(
+            treino_exercicio,
+            data=request.data,
+            partial=True,
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @extend_schema(
+        summary="Remover exercício do treino",
+        description=(
+            "Remove a associação entre o exercício e o treino. "
+            "Permitido somente para administradores."
+        ),
+        responses={
+            204: None,
+            403: dict,
+            404: dict,
+        },
+        tags=["Treinos e exercícios"],
+    )
+    def delete(self, request, treino_pk, pk):
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "remover exercícios do treino."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        treino_exercicio = self.get_treino_exercicio(
+            treino_pk,
+            pk,
+            request.user,
+        )
+
+        if treino_exercicio is None:
+            return Response(
+                {
+                    "detail": (
+                        "Exercício do treino não encontrado."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        treino_exercicio.delete()
 
         return Response(
             status=status.HTTP_204_NO_CONTENT,

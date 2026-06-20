@@ -2,6 +2,8 @@ from django.urls import path
 from .views import (
     ExercicioView,
     ExerciciosView,
+    TreinoExercicioView,
+    TreinoExerciciosView,
     TreinoView,
     TreinosView,
 )
@@ -31,5 +33,20 @@ urlpatterns = [
         "treinos/<int:pk>/",
         TreinoView.as_view(),
         name="treino",
+    ),
+
+    path(
+        "treinos/<int:treino_pk>/exercicios/",
+        TreinoExerciciosView.as_view(),
+        name="treino-exercicios",
+    ),
+
+    path(
+        (
+            "treinos/<int:treino_pk>/"
+            "exercicios/<int:pk>/"
+        ),
+        TreinoExercicioView.as_view(),
+        name="treino-exercicio",
     ),
 ]
