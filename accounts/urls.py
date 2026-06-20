@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import WhoAmIView
+from .views import WhoAmIView, CadastroView
 
 app_name = "accounts"
 
@@ -8,5 +8,11 @@ urlpatterns = [
         "whoami/",
         WhoAmIView.as_view(),
         name="whoami",
+    ),
+    
+    path(
+        "register/",
+        CadastroView.as_view(),
+        name="register",
     ),
 ]
