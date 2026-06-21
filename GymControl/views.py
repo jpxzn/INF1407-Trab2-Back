@@ -5,8 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 
 from drf_spectacular.utils import extend_schema
 
-from .models import Exercicio, Treino, TreinoExercicio
+from .models import Aluno,Exercicio, Treino, TreinoExercicio
 from .serializers import (
+    AlunoSerializer,
     ExercicioSerializer,
     TreinoExercicioSerializer,
     TreinoSerializer,
@@ -769,4 +770,49 @@ class TreinoExercicioView(APIView):
 
         return Response(
             status=status.HTTP_204_NO_CONTENT,
+        )
+
+class AlunosView(APIView):
+    """
+    Lista os alunos cadastrados no sistema.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Listar alunos",
+        description=(
+            "Retorna todos os alunos cadastrados. "
+            "Permitido somente para administradores."
+        ),
+        responses={
+            200: AlunoSerializer(many=True),
+            403: dict,
+        },
+        tags=["Alunos"],
+    )
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {
+                    "detail": (
+                        "Apenas administradores podem "
+                        "listar os alunos."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        alunos = Aluno.objects.select_related(
+            "user"
+        ).all()
+
+        serializer = AlunoSerializer(
+            alunos,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
         )

@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    AlunosView,
     ExercicioView,
     ExerciciosView,
     TreinoExercicioView,
@@ -48,5 +49,11 @@ urlpatterns = [
         ),
         TreinoExercicioView.as_view(),
         name="treino-exercicio",
+    ),
+
+    path(
+        "alunos/",
+        AlunosView.as_view(),
+        name="alunos",
     ),
 ]
