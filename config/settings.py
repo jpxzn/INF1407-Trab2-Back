@@ -37,7 +37,7 @@ ALLOWED_HOSTS = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "https://inf1407-trab2-front.vercel.app",
+    "https://inf-1407-trab2-front.vercel.app",
 ]
 # Application definition
 
