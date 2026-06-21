@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 
 from rest_framework import serializers
 
@@ -133,3 +134,173 @@ class AlterarSenhaSerializer(serializers.Serializer):
         )
 
         return instance
+    
+class PerfilSerializer(serializers.ModelSerializer):
+    peso = serializers.DecimalField(
+        source="aluno.peso",
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=1,
+        max_value=500,
+    )
+
+    altura = serializers.DecimalField(
+        source="aluno.altura",
+        max_digits=3,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0.50,
+        max_value=2.80,
+    )
+
+    tipo_usuario = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+
+        fields = [
+            "id",
+            "username",
+            "email",
+            "date_joined",
+            "tipo_usuario",
+            "peso",
+            "altura",
+        ]
+
+        read_only_fields = [
+            "id",
+            "date_joined",
+            "tipo_usuario",
+        ]
+
+    def get_tipo_usuario(self, user):
+        if user.is_staff or user.is_superuser:
+            return "admin"
+
+        return "aluno"
+
+    def validate_username(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "O nome de usuário não pode ficar vazio."
+            )
+
+        return value
+
+    def validate_email(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "O e-mail não pode ficar vazio."
+            )
+
+        existing_user = User.objects.exclude(
+            pk=self.instance.pk
+        ).filter(
+            email__iexact=value
+        ).exists()
+
+        if existing_user:
+            raise serializers.ValidationError(
+                "Este e-mail já está sendo utilizado."
+            )
+
+        return value
+
+    def validate(self, data):
+        request = self.context["request"]
+        user = request.user
+
+        is_admin = (
+            user.is_staff or
+            user.is_superuser
+        )
+
+        aluno_data = data.get("aluno")
+
+        if is_admin and aluno_data:
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "Peso e altura são campos exclusivos "
+                        "de usuários alunos."
+                    )
+                }
+            )
+
+        if not is_admin:
+            try:
+                user.aluno
+            except Aluno.DoesNotExist as error:
+                raise serializers.ValidationError(
+                    {
+                        "detail": (
+                            "O perfil de aluno não foi encontrado."
+                        )
+                    }
+                ) from error
+
+        return data
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        aluno_data = validated_data.pop(
+            "aluno",
+            {},
+        )
+
+        instance.username = validated_data.get(
+            "username",
+            instance.username,
+        )
+
+        instance.email = validated_data.get(
+            "email",
+            instance.email,
+        )
+
+        instance.save(
+            update_fields=[
+                "username",
+                "email",
+            ]
+        )
+
+        is_admin = (
+            instance.is_staff or
+            instance.is_superuser
+        )
+
+        if not is_admin and aluno_data:
+            aluno = instance.aluno
+
+            if "peso" in aluno_data:
+                aluno.peso = aluno_data["peso"]
+
+            if "altura" in aluno_data:
+                aluno.altura = aluno_data["altura"]
+
+            aluno.save()
+
+        return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        is_admin = (
+            instance.is_staff or
+            instance.is_superuser
+        )
+
+        if is_admin:
+            data.pop("peso", None)
+            data.pop("altura", None)
+
+        return data

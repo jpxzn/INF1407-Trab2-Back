@@ -2,6 +2,10 @@ from django.db import models
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+)
 
 
 class Aluno(models.Model):
@@ -15,6 +19,10 @@ class Aluno(models.Model):
         decimal_places=2,
         blank=True,
         null=True,
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(500),
+        ],
     )
 
     altura = models.DecimalField(
@@ -22,6 +30,10 @@ class Aluno(models.Model):
         decimal_places=2,
         blank=True,
         null=True,
+        validators=[
+            MinValueValidator(0.50),
+            MaxValueValidator(2.80),
+        ],
     )
 
     def __str__(self) -> str:

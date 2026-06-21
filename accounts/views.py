@@ -4,10 +4,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 
-
 from .serializers import (
-    CadastroSerializer,
     AlterarSenhaSerializer,
+    CadastroSerializer,
+    PerfilSerializer,
 )
 
 class WhoAmIView(APIView):
@@ -133,5 +133,72 @@ class AlterarSenhaView(APIView):
             {
                 "detail": "Senha alterada com sucesso."
             },
+            status=status.HTTP_200_OK,
+        )
+    
+class PerfilView(APIView):
+    """
+    Consulta e atualiza o perfil do usuário autenticado.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Consultar perfil",
+        description=(
+            "Retorna os dados do usuário autenticado. "
+            "Peso e altura são retornados apenas para alunos."
+        ),
+        responses={
+            200: PerfilSerializer,
+            401: dict,
+        },
+        tags=["Autenticação"],
+    )
+    def get(self, request):
+        serializer = PerfilSerializer(
+            request.user,
+            context={
+                "request": request,
+            },
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="Atualizar perfil",
+        description=(
+            "Atualiza parcialmente os dados do usuário. "
+            "Peso e altura podem ser atualizados apenas por alunos."
+        ),
+        request=PerfilSerializer,
+        responses={
+            200: PerfilSerializer,
+            400: dict,
+            401: dict,
+        },
+        tags=["Autenticação"],
+    )
+    def patch(self, request):
+        serializer = PerfilSerializer(
+            instance=request.user,
+            data=request.data,
+            partial=True,
+            context={
+                "request": request,
+            },
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            serializer.data,
             status=status.HTTP_200_OK,
         )
