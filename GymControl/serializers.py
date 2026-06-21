@@ -51,17 +51,6 @@ class ExercicioSerializer(serializers.ModelSerializer):
 
 
 class TreinoExercicioSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TreinoExercicio
-        fields = [
-            "id",
-            "treino",
-            "exercicio",
-            "qtd_series",
-            "qtd_repeticoes",
-        ]
-
-class TreinoExercicioSerializer(serializers.ModelSerializer):
     exercicio_nome = serializers.CharField(
         source="exercicio.nome",
         read_only=True,
