@@ -5,7 +5,10 @@ from rest_framework.views import APIView
 from rest_framework import status
 
 
-from .serializers import CadastroSerializer
+from .serializers import (
+    CadastroSerializer,
+    AlterarSenhaSerializer,
+)
 
 class WhoAmIView(APIView):
     """
@@ -78,4 +81,57 @@ class CadastroView(APIView):
         return Response(
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+class AlterarSenhaView(APIView):
+    """
+    Altera a senha do usuário autenticado.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Alterar senha",
+        description=(
+            "Altera a senha do usuário autenticado após "
+            "confirmar a senha atual."
+        ),
+        request=AlterarSenhaSerializer,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "detail": {
+                        "type": "string",
+                        "example": (
+                            "Senha alterada com sucesso."
+                        ),
+                    },
+                },
+            },
+            400: dict,
+            401: dict,
+        },
+        tags=["Autenticação"],
+    )
+    def put(self, request):
+        serializer = AlterarSenhaSerializer(
+            instance=request.user,
+            data=request.data,
+            context={
+                "request": request,
+            },
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            {
+                "detail": "Senha alterada com sucesso."
+            },
+            status=status.HTTP_200_OK,
         )
