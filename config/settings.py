@@ -157,3 +157,9 @@ SPECTACULAR_SETTINGS = {
     ),
     "VERSION": "1.0.0",
 }
+
+EMAIL_BACKEND = (
+    "django.core.mail.backends.console.EmailBackend"
+)
+
+DEFAULT_FROM_EMAIL = "noreply@gymcontrol.com"

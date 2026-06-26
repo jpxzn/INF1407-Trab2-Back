@@ -8,7 +8,23 @@ from .serializers import (
     AlterarSenhaSerializer,
     CadastroSerializer,
     PerfilSerializer,
+    ResetPasswordConfirmSerializer,
+    ResetPasswordRequestSerializer,
 )
+
+import secrets
+from .models import PasswordResetCode
+
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import (
+    validate_password,
+)
+from django.core.exceptions import (
+    ValidationError as DjangoValidationError,
+)
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 
 class WhoAmIView(APIView):
     """
@@ -200,5 +216,200 @@ class PerfilView(APIView):
 
         return Response(
             serializer.data,
+            status=status.HTTP_200_OK,
+        )
+class PasswordResetView(APIView):
+    """
+    Solicita e confirma a recuperação de senha.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Solicitar redefinição de senha",
+        description=(
+            "Recebe o e-mail do usuário, gera um código "
+            "temporário e envia as instruções de recuperação."
+        ),
+        request=ResetPasswordRequestSerializer,
+        responses={
+            200: dict,
+            400: dict,
+        },
+        tags=["Autenticação"],
+    )
+    def post(self, request):
+        serializer = ResetPasswordRequestSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        email = serializer.validated_data["email"]
+
+        user = User.objects.filter(
+            email__iexact=email,
+        ).first()
+
+        # Retornamos a mesma mensagem mesmo se o e-mail
+        # não existir, evitando revelar usuários cadastrados.
+        if user is None:
+            return Response(
+                {
+                    "detail": (
+                        "Se o e-mail estiver cadastrado, "
+                        "as instruções serão enviadas."
+                    )
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        PasswordResetCode.objects.filter(
+            user=user,
+            used=False,
+        ).update(
+            used=True,
+        )
+
+        code = secrets.token_urlsafe(16)
+
+        PasswordResetCode.objects.create(
+            user=user,
+            code=code,
+        )
+
+        context = {
+            "username": user.username,
+            "email": user.email,
+            "token": code,
+        }
+
+        html_message = render_to_string(
+            "email/password_reset_email.html",
+            context,
+        )
+
+        text_message = render_to_string(
+            "email/password_reset_email.txt",
+            context,
+        )
+
+        message = EmailMultiAlternatives(
+            subject="Redefinição de senha do GymControl",
+            body=text_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email],
+        )
+
+        message.attach_alternative(
+            html_message,
+            "text/html",
+        )
+
+        message.send()
+
+        return Response(
+            {
+                "detail": (
+                    "Se o e-mail estiver cadastrado, "
+                    "as instruções serão enviadas."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="Confirmar redefinição de senha",
+        description=(
+            "Valida o código recebido e define "
+            "uma nova senha para o usuário."
+        ),
+        request=ResetPasswordConfirmSerializer,
+        responses={
+            200: dict,
+            400: dict,
+        },
+        tags=["Autenticação"],
+    )
+    def put(self, request):
+        serializer = ResetPasswordConfirmSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        code = serializer.validated_data["code"]
+
+        reset_code = PasswordResetCode.objects.filter(
+            code=code,
+            used=False,
+        ).select_related(
+            "user",
+        ).first()
+
+        if reset_code is None:
+            return Response(
+                {
+                    "detail": (
+                        "Código inválido ou já utilizado."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if reset_code.is_expired():
+            reset_code.used = True
+            reset_code.save(
+                update_fields=["used"],
+            )
+
+            return Response(
+                {
+                    "detail": "O código expirou."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = reset_code.user
+        new_password = serializer.validated_data[
+            "new_password"
+        ]
+
+        try:
+            validate_password(
+                new_password,
+                user=user,
+            )
+        except DjangoValidationError as error:
+            return Response(
+                {
+                    "new_password": list(error.messages)
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(
+            new_password,
+        )
+
+        user.save(
+            update_fields=["password"],
+        )
+
+        reset_code.used = True
+
+        reset_code.save(
+            update_fields=["used"],
+        )
+
+        return Response(
+            {
+                "detail": "Senha redefinida com sucesso."
+            },
             status=status.HTTP_200_OK,
         )

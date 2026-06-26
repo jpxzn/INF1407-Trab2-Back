@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     AlterarSenhaView,
     CadastroView,
+    PasswordResetView,
     PerfilView,
     WhoAmIView,
 )
@@ -31,5 +32,11 @@ urlpatterns = [
         "profile/",
         PerfilView.as_view(),
         name="profile",
+    ),
+
+    path(
+        "password-reset/",
+        PasswordResetView.as_view(),
+        name="password-reset",
     ),
 ]

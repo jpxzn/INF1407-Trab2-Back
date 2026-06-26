@@ -4,8 +4,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 
 from rest_framework import serializers
-
 from GymControl.models import Aluno
+from decimal import Decimal
 
 
 class CadastroSerializer(serializers.ModelSerializer):
@@ -152,8 +152,8 @@ class PerfilSerializer(serializers.ModelSerializer):
         decimal_places=2,
         required=False,
         allow_null=True,
-        min_value=0.50,
-        max_value=2.80,
+        min_value=Decimal("0.50"),
+        max_value=Decimal("2.80"),
     )
 
     tipo_usuario = serializers.SerializerMethodField()
@@ -302,5 +302,37 @@ class PerfilSerializer(serializers.ModelSerializer):
         if is_admin:
             data.pop("peso", None)
             data.pop("altura", None)
+
+        return data
+    
+class ResetPasswordRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField()
+
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    new_password_confirmation = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate(self, data):
+        if (
+            data["new_password"]
+            != data["new_password_confirmation"]
+        ):
+            raise serializers.ValidationError(
+                {
+                    "new_password_confirmation": (
+                        "As senhas não coincidem."
+                    )
+                }
+            )
 
         return data
